@@ -55,10 +55,16 @@ RUN INSTALL_PKGS="libjpeg-turbo libjpeg-turbo-devel python27 python27-python-dev
     yum -y clean all --enablerepo='*'
 
 # Copy the S2I scripts from the specific language image to $STI_SCRIPTS_PATH.
-COPY ./s2i/bin/ $STI_SCRIPTS_PATH
+COPY 2.7/s2i/bin/ $STI_SCRIPTS_PATH
 
 # Copy extra files to the image.
-COPY ./root/ /
+COPY 2.7/root/ /
+
+# Yes, the directory below is already copied by the previous command.
+# The problem here is that the wheels directory is copied as a symlink.
+# Only if you specify symlink directly as a source, COPY copies all the
+# files from the symlink destination.
+COPY 2.7/root/tmp/wheels /tmp/wheels
 
 # - Create a Python virtual environment for use by any application to avoid
 #   potential conflicts with Python packages preinstalled in the main Python
@@ -68,6 +74,15 @@ COPY ./root/ /
 #   under random UID.
 RUN source scl_source enable python27 && \
     virtualenv ${APP_ROOT} && \
+    # We have to upgrade pip to a newer verison because: \
+    # * pip < 9 does not support different packages' versions for Python 2/3 \
+    # * pip < 19.3 does not support manylinux2014 wheels. Only manylinux2014 wheels \
+    #   support platforms like ppc64le, aarch64 or armv7 \
+    # We are newly using wheel from one of the latest stable Fedora releases (from RPM python-pip-wheel) \
+    # because it's tested better that whatever version from PyPI and contains useful patches. \
+    # We have to do it here so the permissions are correctly fixed and pip is able  to reinstall \
+    # itself in the next build phases and in the assemble script if user wants the latest version \
+    ${APP_ROOT}/bin/pip install /tmp/wheels/pip-* && rm -r /tmp/wheels && \
     chown -R 1001:0 ${APP_ROOT} && \
     fix-permissions ${APP_ROOT} -P && \
     rpm-file-permissions
