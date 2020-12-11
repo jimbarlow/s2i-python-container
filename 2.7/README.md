@@ -117,6 +117,27 @@ RUN /usr/libexec/s2i/assemble
 # Set the default command for the resulting image
 CMD /usr/libexec/s2i/run
 ```
+
+A content of a Dockerfile without Source-to_image script would highly depends on your application and its needs.
+An example for simple Django application might look like this:
+
+```
+FROM registry.access.redhat.com/ubi8/python-27
+
+# Add application sources
+USER 0
+ADD app-src .
+
+# Install the dependencies
+RUN pip install -U "pip>=19.3.1" && \
+    pip install -r requirements.txt && \
+    python manage.py collectstatic --noinput && \
+    python manage.py migrate
+
+# Run the application
+CMD python manage.py runserver 0.0.0.0:8080
+```
+
 #### 4. Build a new image from a Dockerfile prepared in the previous step
 
 ```
